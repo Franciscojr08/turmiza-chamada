@@ -9,7 +9,8 @@
 <!--
   Página da chamada por QR code do Turmiza (publicada no GitHub Pages). Não guarda nada: o link do QR traz,
   depois do #, o App da Web do professor (u, e d no Google Workspace), a sessão (s) e o token do quadro (t).
-  Sem uma chamada aberta e um token válido, mostra só "404". A presença vai ao script por GET, sem cookies.
+  Sem uma chamada aberta e um token válido, mostra só "404". Enquanto o script responde (alguns segundos),
+  um link com os dados da chamada mostra "Abrindo a chamada…". A presença vai ao script por GET, sem cookies.
   Fonte: resources/pagina-chamada/index.html, no repositório do Turmiza.
 -->
 <style>
@@ -18,6 +19,9 @@
   .nao-encontrada { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding-top: 12vh; background: #f1f1f1; color: #5a5a5a; text-align: center; }
   .nao-encontrada h1 { font-size: 64px; font-weight: 400; color: #111; margin: 0 0 24px; }
   .nao-encontrada p { margin: 0; font-weight: 600; }
+  .carregando { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: #64748b; font-weight: 600; }
+  .roda { width: 40px; height: 40px; border: 4px solid #cbd5e1; border-top-color: #159bd3; border-radius: 50%; animation: girar .8s linear infinite; }
+  @keyframes girar { to { transform: rotate(360deg); } }
   header { background: #0b2942; color: #fff; padding: 22px 24px; }
   .marca { font-weight: 700; font-size: 18px; margin: 0; }
   .rotulo { margin: 14px 0 2px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #20b8c9; }
@@ -44,6 +48,11 @@
 <div id="nao-encontrada" class="nao-encontrada">
   <h1>404</h1>
   <p>Página não encontrada.</p>
+</div>
+
+<div id="carregando" class="carregando" hidden>
+  <div class="roda" aria-hidden="true"></div>
+  <p>Abrindo a chamada…</p>
 </div>
 
 <div id="chamada" hidden>
@@ -82,6 +91,13 @@
   if (! /^[A-Za-z0-9_-]{10,200}$/.test(id) || (dominio !== '' && ! /^[a-z0-9.-]{3,100}$/i.test(dominio)) || ! /^[A-Za-z0-9]{16,64}$/.test(sessao) || ! /^[a-f0-9]{12}$/.test(token)) {
     return;
   }
+
+  var naoEncontrada = document.getElementById('nao-encontrada');
+  var carregando = document.getElementById('carregando');
+
+  // O Apps Script leva alguns segundos para responder: até lá, "Abrindo a chamada…" no lugar do "404".
+  naoEncontrada.hidden = true;
+  carregando.hidden = false;
 
   var script = 'https://script.google.com/' + (dominio !== '' ? 'a/macros/' + dominio : 'macros') + '/s/' + id + '/exec';
 
@@ -126,18 +142,25 @@
     matricula: 'Digite a sua matrícula, só os números.'
   };
 
+  function naoAchou() {
+    carregando.hidden = true;
+    naoEncontrada.hidden = false;
+  }
+
   chamar({ acao: 'estado' }).then(function (estado) {
-    if (! estado.ok) {
+    if (! estado || ! estado.ok) {
+      naoAchou();
+
       return;
     }
 
     document.title = 'Chamada';
     document.getElementById('disciplina').textContent = estado.disciplina;
     document.getElementById('turma').textContent = estado.turma + ' · ' + estado.data;
-    document.getElementById('nao-encontrada').hidden = true;
+    carregando.hidden = true;
     document.getElementById('chamada').hidden = false;
     document.getElementById('matricula').focus();
-  }).catch(function () {});
+  }).catch(naoAchou);
 
   document.getElementById('formulario').addEventListener('submit', function (evento) {
     evento.preventDefault();
