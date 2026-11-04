@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>404</title>
+<!--
+  Página da chamada por QR code do Turmiza (publicada no GitHub Pages). Não guarda nada: o link do QR traz,
+  depois do #, o App da Web do professor (u, e d no Google Workspace), a sessão (s) e o token do quadro (t).
+  Sem uma chamada aberta e um token válido, mostra só "404". A presença vai ao script por GET, sem cookies.
+  Fonte: resources/pagina-chamada/index.html, no repositório do Turmiza.
+-->
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #f4f8fa; color: #1e293b; }
+  .nao-encontrada { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding-top: 12vh; background: #f1f1f1; color: #5a5a5a; text-align: center; }
+  .nao-encontrada h1 { font-size: 64px; font-weight: 400; color: #111; margin: 0 0 24px; }
+  .nao-encontrada p { margin: 0; font-weight: 600; }
+  header { background: #0b2942; color: #fff; padding: 22px 24px; }
+  .marca { font-weight: 700; font-size: 18px; margin: 0; }
+  .rotulo { margin: 14px 0 2px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #20b8c9; }
+  .titulo { margin: 0; font-size: 21px; font-weight: 700; }
+  .sub { margin: 2px 0 0; font-size: 14px; color: rgba(255, 255, 255, .75); }
+  main { padding: 24px; max-width: 480px; margin: 0 auto; }
+  label { display: block; font-weight: 600; font-size: 14px; margin: 0 0 6px; }
+  input { width: 100%; border: 1px solid #cbd5e1; border-radius: 12px; padding: 13px 14px; font-size: 18px; background: #fff; color: #1e293b; }
+  input:focus { outline: 2px solid #159bd3; border-color: #159bd3; }
+  .codigo { text-align: center; font-family: ui-monospace, monospace; font-size: 30px; letter-spacing: .4em; }
+  .campo { margin-bottom: 18px; }
+  .dica { font-size: 12px; color: #64748b; margin: 6px 0 0; }
+  button { width: 100%; border: 0; border-radius: 12px; padding: 16px; font-size: 18px; font-weight: 700; color: #fff; background: #3ab56b; cursor: pointer; }
+  button:disabled { opacity: .6; }
+  .erro { border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; border-radius: 12px; padding: 12px 14px; font-size: 14px; margin-bottom: 16px; }
+  .fim { text-align: center; padding-top: 30px; }
+  .icone { font-size: 64px; }
+  .fim h2 { color: #0b2942; margin: 12px 0 4px; }
+  .fim p { color: #64748b; margin: 0; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div id="nao-encontrada" class="nao-encontrada">
+  <h1>404</h1>
+  <p>Página não encontrada.</p>
+</div>
+
+<div id="chamada" hidden>
+  <header>
+    <p class="marca">Turmiza</p>
+    <p class="rotulo">Chamada</p>
+    <p class="titulo" id="disciplina"></p>
+    <p class="sub" id="turma"></p>
+  </header>
+  <main id="conteudo">
+    <form id="formulario" novalidate>
+      <div id="erro" class="erro" hidden></div>
+      <div class="campo">
+        <label for="matricula">Sua matrícula</label>
+        <input id="matricula" inputmode="numeric" autocomplete="off" required>
+      </div>
+      <div class="campo">
+        <label for="codigo">Código que está na tela</label>
+        <input id="codigo" class="codigo" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="0000" required>
+        <p class="dica">São 4 números e mudam a cada 10 segundos. Digite o que aparece agora.</p>
+      </div>
+      <button id="enviar" type="submit">Estou presente</button>
+    </form>
+  </main>
+</div>
+
+<script>
+(function () {
+  var dados = new URLSearchParams(location.hash.slice(1));
+  var id = dados.get('u') || '';
+  var dominio = dados.get('d') || '';
+  var sessao = dados.get('s') || '';
+  var token = dados.get('t') || '';
+
+  // Só fala com um App da Web do Apps Script; qualquer outro link fica no "404".
+  if (! /^[A-Za-z0-9_-]{10,200}$/.test(id) || (dominio !== '' && ! /^[a-z0-9.-]{3,100}$/i.test(dominio)) || ! /^[A-Za-z0-9]{16,64}$/.test(sessao) || ! /^[a-f0-9]{12}$/.test(token)) {
+    return;
+  }
+
+  var script = 'https://script.google.com/' + (dominio !== '' ? 'a/macros/' + dominio : 'macros') + '/s/' + id + '/exec';
+
+  function chamar(parametros) {
+    var url = script + '?' + new URLSearchParams(Object.assign({ s: sessao, t: token }, parametros)).toString();
+
+    return fetch(url, { credentials: 'omit', cache: 'no-store', redirect: 'follow', referrerPolicy: 'no-referrer' }).then(function (r) { return r.json(); });
+  }
+
+  function aparelho() {
+    try {
+      var valor = localStorage.getItem('turmiza-aparelho');
+
+      if (! valor) {
+        valor = Math.random().toString(36).slice(2) + Date.now().toString(36);
+        localStorage.setItem('turmiza-aparelho', valor);
+      }
+
+      return valor;
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function fim(icone, titulo, texto) {
+    var conteudo = document.getElementById('conteudo');
+    conteudo.textContent = '';
+    var caixa = document.createElement('div');
+    caixa.className = 'fim';
+    [['div', 'icone', icone], ['h2', '', titulo], ['p', '', texto]].forEach(function (item) {
+      var el = document.createElement(item[0]);
+      if (item[1]) { el.className = item[1]; }
+      el.textContent = item[2];
+      caixa.appendChild(el);
+    });
+    conteudo.appendChild(caixa);
+  }
+
+  var mensagens = {
+    qr: 'O QR code expirou. Escaneie de novo o QR que está na tela.',
+    codigo: 'O código mudou. Digite o que aparece na tela agora.',
+    matricula: 'Digite a sua matrícula, só os números.'
+  };
+
+  chamar({ acao: 'estado' }).then(function (estado) {
+    if (! estado.ok) {
+      return;
+    }
+
+    document.title = 'Chamada';
+    document.getElementById('disciplina').textContent = estado.disciplina;
+    document.getElementById('turma').textContent = estado.turma + ' · ' + estado.data;
+    document.getElementById('nao-encontrada').hidden = true;
+    document.getElementById('chamada').hidden = false;
+    document.getElementById('matricula').focus();
+  }).catch(function () {});
+
+  document.getElementById('formulario').addEventListener('submit', function (evento) {
+    evento.preventDefault();
+    var botao = document.getElementById('enviar');
+    var erro = document.getElementById('erro');
+    var matricula = document.getElementById('matricula').value;
+    botao.disabled = true;
+    erro.hidden = true;
+
+    chamar({ acao: 'marcar', matricula: matricula, codigo: document.getElementById('codigo').value, aparelho: aparelho() }).then(function (r) {
+      botao.disabled = false;
+
+      if (r.ok) {
+        history.replaceState(null, '', location.pathname);
+        fim('✅', 'Presença registrada', 'Matrícula ' + matricula.replace(/\D/g, '') + ' às ' + r.hora + '. Pode fechar esta página.');
+      } else if (r.motivo === 'fechada') {
+        fim('🚪', 'A chamada está fechada', 'O professor encerrou a chamada desta aula.');
+      } else if (r.motivo === 'aparelho') {
+        fim('📱', 'Este celular já marcou presença', 'Cada celular marca uma presença por aula. Se houve engano, fale com o professor.');
+      } else {
+        erro.textContent = mensagens[r.motivo] || 'Não foi possível marcar a presença.';
+        erro.hidden = false;
+      }
+    }).catch(function () {
+      botao.disabled = false;
+      erro.textContent = 'Sem conexão. Tente de novo.';
+      erro.hidden = false;
+    });
+  });
+})();
+</script>
+</body>
+</html>
