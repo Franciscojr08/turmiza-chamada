@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>404</title>
+<!--
+  Correção de provas pelo celular do Turmiza (publicada no GitHub Pages, na pasta correcao/ do repositório da chamada).
+  O QR da tela do Turmiza traz, depois do #, o App da Web do professor (u, e d no Google Workspace) e a sessão (s); a
+  página guarda isso no celular e pede uma vez o código de 6 números. O QR de cada caderno traz o código do caderno (c).
+  A foto é lida aqui mesmo (omr.js, com o jsQR para o QR): só as letras vão ao script, por GET e sem cookies.
+  Fonte: resources/pagina-correcao/, no repositório do Turmiza. jsQR.js: biblioteca jsQR 1.4.0 (Apache-2.0).
+-->
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #f4f8fa; color: #1e293b; }
+  .nao-encontrada { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding-top: 12vh; background: #f1f1f1; color: #5a5a5a; text-align: center; }
+  .nao-encontrada h1 { font-size: 64px; font-weight: 400; color: #111; margin: 0 0 24px; }
+  .nao-encontrada p { margin: 0; font-weight: 600; }
+  .carregando { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: #64748b; font-weight: 600; }
+  .roda { width: 40px; height: 40px; border: 4px solid #cbd5e1; border-top-color: #159bd3; border-radius: 50%; animation: girar .8s linear infinite; }
+  @keyframes girar { to { transform: rotate(360deg); } }
+  header { background: #0b2942; color: #fff; padding: 18px 20px; }
+  .marca { font-weight: 700; font-size: 17px; margin: 0; }
+  .rotulo { margin: 10px 0 2px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #20b8c9; }
+  .titulo { margin: 0; font-size: 19px; font-weight: 700; }
+  .sub { margin: 2px 0 0; font-size: 14px; color: rgba(255, 255, 255, .75); }
+  main { padding: 20px; max-width: 520px; margin: 0 auto; }
+  label { display: block; font-weight: 600; font-size: 14px; margin: 0 0 6px; }
+  input.texto { width: 100%; border: 1px solid #cbd5e1; border-radius: 12px; padding: 13px 14px; font-size: 18px; background: #fff; color: #1e293b; }
+  .codigo { text-align: center; font-family: ui-monospace, monospace; font-size: 30px !important; letter-spacing: .35em; }
+  .campo { margin-bottom: 18px; }
+  .dica { font-size: 13px; color: #64748b; margin: 8px 0 0; line-height: 1.45; }
+  .botao { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; border: 0; border-radius: 14px; padding: 16px; font-size: 18px; font-weight: 700; color: #fff; background: #3ab56b; cursor: pointer; text-align: center; }
+  .botao.azul { background: #0b2942; }
+  .botao.claro { background: #fff; color: #0b2942; border: 1px solid #cbd5e1; font-size: 16px; padding: 13px; }
+  .botao:disabled { opacity: .6; }
+  .grande { padding: 26px 16px; font-size: 21px; }
+  .erro { border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; border-radius: 12px; padding: 12px 14px; font-size: 14px; margin-bottom: 16px; }
+  .aviso { border: 1px solid #fde68a; background: #fffbeb; color: #92400e; border-radius: 12px; padding: 12px 14px; font-size: 14px; margin-bottom: 14px; }
+  .ok { border: 1px solid #bbf7d0; background: #f0fdf4; color: #166534; border-radius: 12px; padding: 12px 14px; font-size: 15px; margin-bottom: 16px; font-weight: 600; }
+  .contador { display: flex; align-items: baseline; gap: 8px; margin: 0 0 16px; color: #0b2942; }
+  .contador strong { font-size: 34px; }
+  .lidos { list-style: none; padding: 0; margin: 18px 0 0; font-size: 14px; color: #475569; display: flex; flex-wrap: wrap; gap: 6px; }
+  .lidos li { background: #e2f6ea; color: #166534; border-radius: 99px; padding: 4px 10px; font-weight: 600; }
+  .aluno { font-size: 22px; font-weight: 800; color: #0b2942; margin: 0 0 4px; }
+  canvas.previa { width: 100%; border-radius: 12px; border: 1px solid #cbd5e1; background: #fff; margin: 8px 0 14px; }
+  .grade { display: grid; gap: 6px; margin: 4px 0 18px; }
+  .linha { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 10px; }
+  .linha.duvida { background: #fef3c7; }
+  .linha .num { width: 34px; font-weight: 800; color: #0b2942; text-align: right; padding-right: 4px; }
+  .linha button { flex: 1; min-width: 0; height: 40px; border-radius: 99px; border: 2px solid #94a3b8; background: #fff; color: #334155; font-weight: 700; font-size: 15px; }
+  .linha button.marcada { background: #0b2942; border-color: #0b2942; color: #fff; }
+  .linha button.dupla { flex: 0 0 auto; padding: 0 10px; border-radius: 10px; font-size: 12px; border-width: 1px; }
+  .linha button.dupla.ativa { background: #b91c1c; border-color: #b91c1c; color: #fff; }
+  .acoes { display: grid; gap: 10px; }
+  .fim { text-align: center; padding-top: 30px; }
+  .icone { font-size: 64px; }
+  .fim h2 { color: #0b2942; margin: 12px 0 4px; }
+  .fim p { color: #64748b; margin: 0; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div id="nao-encontrada" class="nao-encontrada">
+  <h1>404</h1>
+  <p>Página não encontrada.</p>
+</div>
+
+<div id="carregando" class="carregando" hidden>
+  <div class="roda" aria-hidden="true"></div>
+  <p id="carregando-texto">Abrindo a correção…</p>
+</div>
+
+<div id="app" hidden>
+  <header>
+    <p class="marca">Turmiza</p>
+    <p class="rotulo">Correção pelo celular</p>
+    <p class="titulo" id="titulo"></p>
+    <p class="sub" id="turma"></p>
+  </header>
+
+  <main>
+    <div id="mensagem" class="erro" hidden></div>
+    <div id="sucesso" class="ok" hidden></div>
+
+    <form id="tela-codigo" hidden novalidate>
+      <div class="campo">
+        <label for="codigo">Código do professor</label>
+        <input id="codigo" class="texto codigo" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000">
+        <p class="dica">São os 6 números que aparecem no Turmiza, ao lado do QR. Você digita uma vez e este celular fica liberado até a correção ser encerrada.</p>
+      </div>
+      <button class="botao azul" id="entrar" type="submit">Entrar</button>
+    </form>
+
+    <section id="tela-principal" hidden>
+      <p class="contador"><strong id="lidos-total">0</strong> <span>de <span id="alunos-total">0</span> cadernos lidos</span></p>
+      <div id="caderno-escolhido" class="aviso" hidden></div>
+      <label class="botao grande" for="foto">📷 Fotografar caderno</label>
+      <input id="foto" type="file" accept="image/*" capture="environment" hidden>
+      <p class="dica">Enquadre o quadro de respostas inteiro, com os 4 quadrados pretos dos cantos e o QR. Papel reto, sem sombra forte e sem reflexo.</p>
+      <button class="botao claro" id="a-mao" type="button" hidden>Preencher à mão (sem foto)</button>
+      <ul class="lidos" id="lidos"></ul>
+    </section>
+
+    <section id="tela-revisao" hidden>
+      <p class="aluno" id="aluno"></p>
+      <div id="aviso-leitura" class="aviso" hidden></div>
+      <canvas id="previa" class="previa" hidden></canvas>
+      <p class="dica" style="margin-top:0">Confira as marcações. Toque numa letra para trocar; as linhas em amarelo ficaram em dúvida.</p>
+      <div class="grade" id="grade"></div>
+      <div class="acoes">
+        <button class="botao" id="enviar" type="button">Enviar para o Turmiza</button>
+        <label class="botao claro" for="foto">Fotografar de novo</label>
+        <button class="botao claro" id="cancelar" type="button">Cancelar</button>
+      </div>
+    </section>
+
+    <section id="tela-fim" class="fim" hidden>
+      <div class="icone" id="fim-icone"></div>
+      <h2 id="fim-titulo"></h2>
+      <p id="fim-texto"></p>
+    </section>
+  </main>
+</div>
+
+<script src="jsQR.js"></script>
+<script src="omr.js"></script>
+<script>
+(function () {
+  var GUARDADO = 'turmiza-correcao';
+  var dados = new URLSearchParams(location.hash.slice(1));
+  var tokenDoLink = window.TurmizaOmr.lerToken(location.hash);
+  var sessao = ler();
+
+  // QR da tela do Turmiza: App da Web (u, d) e sessão (s). Uma sessão nova esquece o código da anterior.
+  if (/^[A-Za-z0-9_-]{10,200}$/.test(dados.get('u') || '') && /^[A-Za-z0-9]{16,64}$/.test(dados.get('s') || '') && (! dados.get('d') || /^[a-z0-9.-]{3,100}$/i.test(dados.get('d')))) {
+    var nova = { u: dados.get('u'), d: dados.get('d') || '', s: dados.get('s'), k: '' };
+    sessao = sessao && sessao.s === nova.s ? Object.assign(nova, { k: sessao.k }) : nova;
+    gravar(sessao);
+  }
+
+  if (location.hash) {
+    history.replaceState(null, '', location.pathname);
+  }
+
+  var $ = function (id) { return document.getElementById(id); };
+  var estado = null;
+  var leitura = null;  // { token, nome, respostas: [], duvidas: [] }
+  var telas = ['tela-codigo', 'tela-principal', 'tela-revisao', 'tela-fim'];
+
+  function ler() {
+    try {
+      var valor = JSON.parse(localStorage.getItem(GUARDADO) || 'null');
+
+      return valor && valor.s ? valor : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function gravar(valor) {
+    try {
+      if (valor) {
+        localStorage.setItem(GUARDADO, JSON.stringify(valor));
+      } else {
+        localStorage.removeItem(GUARDADO);
+      }
+    } catch (e) { /* sem armazenamento: vale só nesta aba */ }
+  }
+
+  if (! sessao) {
+    // Sem a sessão do Turmiza neste celular: um QR de caderno sozinho não abre nada.
+    if (tokenDoLink) {
+      $('nao-encontrada').hidden = true;
+      $('app').hidden = false;
+      fim('📱', 'Abra a correção no Turmiza primeiro', 'Na tela de notas da prova, abra "Corrigir pelo celular" e escaneie o QR que aparece lá. Depois os cadernos abrem direto.');
+    }
+
+    return;
+  }
+
+  var script = 'https://script.google.com/' + (sessao.d ? 'a/macros/' + sessao.d : 'macros') + '/s/' + sessao.u + '/exec';
+
+  function chamar(parametros) {
+    var url = script + '?' + new URLSearchParams(Object.assign({ s: sessao.s, k: sessao.k }, parametros)).toString();
+
+    return fetch(url, { credentials: 'omit', cache: 'no-store', redirect: 'follow', referrerPolicy: 'no-referrer' }).then(function (r) { return r.json(); });
+  }
+
+  function mostrar(tela) {
+    telas.forEach(function (t) { $(t).hidden = t !== tela; });
+    window.scrollTo(0, 0);
+  }
+
+  function erro(texto) {
+    $('mensagem').textContent = texto || '';
+    $('mensagem').hidden = ! texto;
+  }
+
+  function sucesso(texto) {
+    $('sucesso').textContent = texto || '';
+    $('sucesso').hidden = ! texto;
+  }
+
+  function fim(icone, titulo, texto) {
+    $('fim-icone').textContent = icone;
+    $('fim-titulo').textContent = titulo;
+    $('fim-texto').textContent = texto;
+    mostrar('tela-fim');
+  }
+
+  function carregando(texto) {
+    $('carregando-texto').textContent = texto;
+    $('carregando').hidden = false;
+    $('app').hidden = true;
+    $('nao-encontrada').hidden = true;
+  }
+
+  function pronto() {
+    $('carregando').hidden = true;
+    $('app').hidden = false;
+  }
+
+  function encerrada() {
+    gravar(null);
+    pronto();
+    fim('🚪', 'A correção foi encerrada', 'O professor encerrou a correção desta prova no Turmiza. Para continuar, abra de novo e escaneie o QR da tela.');
+  }
+
+  function bloqueada() {
+    gravar(null);
+    pronto();
+    fim('🔒', 'Correção bloqueada', 'O código foi digitado errado muitas vezes. Encerre e abra de novo a correção no Turmiza.');
+  }
+
+  function pedirCodigo(mensagem) {
+    pronto();
+    erro(mensagem || '');
+    mostrar('tela-codigo');
+    $('codigo').focus();
+  }
+
+  function atualizarPrincipal() {
+    $('titulo').textContent = estado.titulo;
+    $('turma').textContent = 'Turma ' + estado.turma;
+    $('alunos-total').textContent = Object.keys(estado.alunos).length;
+    $('lidos-total').textContent = estado.lidos.length;
+    var lista = $('lidos');
+    lista.textContent = '';
+    estado.lidos.forEach(function (a) {
+      var item = document.createElement('li');
+      item.textContent = estado.alunos[a] || '?';
+      lista.appendChild(item);
+    });
+
+    var escolhido = tokenDoLink && estado.alunos[tokenDoLink.assinatura];
+    $('caderno-escolhido').hidden = ! escolhido;
+    $('caderno-escolhido').textContent = escolhido ? 'Caderno de ' + escolhido + ' (do QR que você leu). Fotografe o quadro de respostas ou preencha à mão.' : '';
+    $('a-mao').hidden = ! escolhido;
+  }
+
+  function carregarEstado() {
+    carregando('Abrindo a correção…');
+
+    return chamar({ acao: 'correcao_estado' }).then(function (r) {
+      if (r && r.ok) {
+        document.title = 'Correção';
+        sessao.tentou = false;
+        gravar(sessao);
+        estado = r;
+        pronto();
+        atualizarPrincipal();
+        mostrar('tela-principal');
+      } else if (r && r.motivo === 'codigo') {
+        sessao.k = '';
+        gravar(sessao);
+        pedirCodigo(sessao.tentou ? 'Código errado. Confira os 6 números na tela do Turmiza.' : '');
+      } else if (r && r.motivo === 'bloqueada') {
+        bloqueada();
+      } else {
+        encerrada();
+      }
+    }).catch(function () {
+      pronto();
+      fim('📶', 'Sem conexão', 'Não foi possível falar com o Google. Confira a internet e abra a página de novo.');
+    });
+  }
+
+  $('tela-codigo').addEventListener('submit', function (evento) {
+    evento.preventDefault();
+    var codigo = $('codigo').value.replace(/\D/g, '');
+
+    if (codigo.length !== 6) {
+      erro('Digite os 6 números do código.');
+
+      return;
+    }
+
+    sessao.k = codigo;
+    sessao.tentou = true;
+    gravar(sessao);
+    carregarEstado();
+  });
+
+  // ------------------------------------------------------------------ foto
+
+  function carregarImagem(arquivo) {
+    if (window.createImageBitmap) {
+      return createImageBitmap(arquivo, { imageOrientation: 'from-image' }).catch(function () { return createImageBitmap(arquivo); });
+    }
+
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () { resolve(img); };
+      img.onerror = reject;
+      img.src = URL.createObjectURL(arquivo);
+    });
+  }
+
+  function acharQr(canvas, contexto) {
+    var imagem = contexto.getImageData(0, 0, canvas.width, canvas.height);
+    var codigo = window.jsQR(imagem.data, canvas.width, canvas.height, { inversionAttempts: 'attemptBoth' });
+
+    if (codigo) {
+      return Promise.resolve({
+        imagem: imagem,
+        qr: { texto: codigo.data, modulos: 17 + 4 * codigo.version, cantos: [codigo.location.topLeftCorner, codigo.location.topRightCorner, codigo.location.bottomRightCorner, codigo.location.bottomLeftCorner] },
+      });
+    }
+
+    if (! ('BarcodeDetector' in window)) {
+      return Promise.resolve({ imagem: imagem, qr: null });
+    }
+
+    // O leitor do próprio celular (Android) acha o QR em fotos que o jsQR não pega; dele só vale o texto.
+    return new window.BarcodeDetector({ formats: ['qr_code'] }).detect(canvas).then(function (achados) {
+      return { imagem: imagem, qr: achados[0] ? { texto: achados[0].rawValue, cantos: null } : null };
+    }).catch(function () {
+      return { imagem: imagem, qr: null };
+    });
+  }
+
+  function processarFoto(arquivo) {
+    erro('');
+    sucesso('');
+    carregando('Lendo o caderno…');
+
+    carregarImagem(arquivo).then(function (bitmap) {
+      var escala = Math.min(1, 1800 / Math.max(bitmap.width, bitmap.height));
+      var canvas = document.createElement('canvas');
+      canvas.width = Math.round(bitmap.width * escala);
+      canvas.height = Math.round(bitmap.height * escala);
+      var contexto = canvas.getContext('2d', { willReadFrequently: true });
+      contexto.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+      return acharQr(canvas, contexto).then(function (achado) {
+        var token = achado.qr ? window.TurmizaOmr.lerToken(achado.qr.texto) : null;
+
+        if (achado.qr && ! token) {
+          throw new Error('Esse QR não é de um caderno de respostas do Turmiza.');
+        }
+
+        token = token || tokenDoLink;
+
+        if (! token) {
+          throw new Error('Não achei o QR do caderno na foto. Fotografe o quadro inteiro, com o QR e os 4 quadrados pretos.');
+        }
+
+        if (token.avaliacao !== estado.avaliacao || ! estado.alunos[token.assinatura]) {
+          throw new Error('Este caderno não é desta prova ou não é de um aluno desta turma.');
+        }
+
+        if (token.questoes !== estado.questoes || token.alternativas !== estado.alternativas) {
+          throw new Error('Este caderno foi impresso antes de a prova mudar. Imprima de novo o caderno deste aluno.');
+        }
+
+        var resultado = window.TurmizaOmr.lerCaderno(
+          { cinza: window.TurmizaOmr.paraCinza(achado.imagem.data, canvas.width, canvas.height), largura: canvas.width, altura: canvas.height },
+          { questoes: estado.questoes, alternativas: estado.alternativas, qr: achado.qr && achado.qr.cantos ? achado.qr : null }
+        );
+
+        abrirRevisao(token, resultado, canvas);
+      });
+    }).catch(function (falha) {
+      pronto();
+      mostrar('tela-principal');
+      erro(falha && falha.message ? falha.message : 'Não foi possível abrir a foto. Tente de novo.');
+    });
+  }
+
+  $('foto').addEventListener('change', function () {
+    var arquivo = this.files && this.files[0];
+    this.value = '';
+
+    if (arquivo) {
+      processarFoto(arquivo);
+    }
+  });
+
+  $('a-mao').addEventListener('click', function () {
+    abrirRevisao(tokenDoLink, null, null);
+  });
+
+  // ------------------------------------------------------------------ revisão
+
+  function abrirRevisao(token, resultado, canvas) {
+    var vazias = Array(estado.questoes + 1).join('-').split('');
+    leitura = {
+      token: token,
+      respostas: resultado && resultado.ok ? resultado.respostas.split('') : vazias,
+      duvidas: resultado && resultado.ok ? resultado.duvidas : [],
+    };
+
+    pronto();
+    $('aluno').textContent = estado.alunos[token.assinatura];
+    var aviso = '';
+
+    if (resultado && ! resultado.ok) {
+      aviso = resultado.motivo === 'contraste'
+        ? 'A foto ficou escura ou sem contraste. Fotografe de novo com mais luz, ou marque as respostas à mão abaixo.'
+        : 'Não achei os 4 quadrados pretos do quadro. Fotografe de novo com o quadro inteiro, ou marque as respostas à mão abaixo.';
+    } else if (leitura.duvidas.length > 0) {
+      aviso = leitura.duvidas.length === 1 ? '1 questão ficou em dúvida: confira a linha em amarelo.' : leitura.duvidas.length + ' questões ficaram em dúvida: confira as linhas em amarelo.';
+    }
+
+    $('aviso-leitura').textContent = aviso;
+    $('aviso-leitura').hidden = aviso === '';
+    desenharPrevia(canvas, resultado);
+    desenharGrade();
+    mostrar('tela-revisao');
+  }
+
+  function desenharPrevia(canvas, resultado) {
+    var previa = $('previa');
+
+    if (! canvas || ! resultado || ! resultado.ok) {
+      previa.hidden = true;
+
+      return;
+    }
+
+    // Recorte da foto em volta do quadro, com um círculo em cada bolinha lida como marcada.
+    var xs = resultado.marcas.map(function (p) { return p.x; });
+    var ys = resultado.marcas.map(function (p) { return p.y; });
+    var margem = resultado.raioPx * 4;
+    var x0 = Math.max(0, Math.min.apply(null, xs) - margem), y0 = Math.max(0, Math.min.apply(null, ys) - margem);
+    var x1 = Math.min(canvas.width, Math.max.apply(null, xs) + margem), y1 = Math.min(canvas.height, Math.max.apply(null, ys) + margem);
+    var escala = Math.min(1, 900 / (x1 - x0));
+    previa.width = Math.round((x1 - x0) * escala);
+    previa.height = Math.round((y1 - y0) * escala);
+    var contexto = previa.getContext('2d');
+    contexto.drawImage(canvas, x0, y0, x1 - x0, y1 - y0, 0, 0, previa.width, previa.height);
+    contexto.lineWidth = 3;
+
+    resultado.bolhas.forEach(function (b) {
+      if (b.escuro < 0.18) {
+        return;
+      }
+
+      contexto.strokeStyle = b.escuro >= 0.45 ? '#16a34a' : '#f59e0b';
+      contexto.beginPath();
+      contexto.arc((b.x - x0) * escala, (b.y - y0) * escala, Math.max(6, resultado.raioPx * escala * 1.9), 0, 2 * Math.PI);
+      contexto.stroke();
+    });
+
+    previa.hidden = false;
+  }
+
+  function desenharGrade() {
+    var grade = $('grade');
+    var letras = 'ABCDE'.slice(0, estado.alternativas).split('');
+    grade.textContent = '';
+
+    leitura.respostas.forEach(function (resposta, i) {
+      var linha = document.createElement('div');
+      linha.className = 'linha' + (leitura.duvidas.indexOf(i) !== -1 ? ' duvida' : '');
+      var numero = document.createElement('span');
+      numero.className = 'num';
+      numero.textContent = String(estado.numeros[i] || i + 1).padStart(2, '0');
+      linha.appendChild(numero);
+
+      letras.forEach(function (letra) {
+        var botao = document.createElement('button');
+        botao.type = 'button';
+        botao.textContent = letra;
+        botao.className = resposta === letra ? 'marcada' : '';
+        botao.addEventListener('click', function () {
+          leitura.respostas[i] = leitura.respostas[i] === letra ? '-' : letra;
+          desenharGrade();
+        });
+        linha.appendChild(botao);
+      });
+
+      var dupla = document.createElement('button');
+      dupla.type = 'button';
+      dupla.className = 'dupla' + (resposta === '*' ? ' ativa' : '');
+      dupla.textContent = 'Dupla';
+      dupla.setAttribute('aria-label', 'Marcação dupla na questão ' + numero.textContent);
+      dupla.addEventListener('click', function () {
+        leitura.respostas[i] = leitura.respostas[i] === '*' ? '-' : '*';
+        desenharGrade();
+      });
+      linha.appendChild(dupla);
+      grade.appendChild(linha);
+    });
+  }
+
+  $('cancelar').addEventListener('click', function () {
+    leitura = null;
+    erro('');
+    mostrar('tela-principal');
+  });
+
+  var mensagens = {
+    caderno: 'Este caderno não é desta prova ou não é de um aluno desta turma.',
+    versao: 'Este caderno foi impresso antes de a prova mudar. Imprima de novo o caderno deste aluno.',
+    respostas: 'As respostas não estão completas. Confira a grade.',
+  };
+
+  $('enviar').addEventListener('click', function () {
+    var botao = this;
+    botao.disabled = true;
+    erro('');
+
+    chamar({ acao: 'correcao_enviar', c: leitura.token.token, r: leitura.respostas.join('') }).then(function (r) {
+      botao.disabled = false;
+
+      if (r && r.ok) {
+        if (estado.lidos.indexOf(leitura.token.assinatura) === -1) {
+          estado.lidos.push(leitura.token.assinatura);
+        }
+
+        tokenDoLink = null;
+        leitura = null;
+        atualizarPrincipal();
+        mostrar('tela-principal');
+        sucesso('✅ ' + r.nome + ' enviado às ' + r.hora + '. Próximo caderno!');
+      } else if (r && r.motivo === 'fechada') {
+        encerrada();
+      } else if (r && r.motivo === 'bloqueada') {
+        bloqueada();
+      } else if (r && r.motivo === 'codigo') {
+        sessao.k = '';
+        gravar(sessao);
+        pedirCodigo('O código mudou. Digite o código que está na tela do Turmiza.');
+      } else {
+        erro(mensagens[r && r.motivo] || 'Não foi possível enviar. Tente de novo.');
+      }
+    }).catch(function () {
+      botao.disabled = false;
+      erro('Sem conexão. Tente de novo.');
+    });
+  });
+
+  // ------------------------------------------------------------------ início
+
+  if (sessao.k) {
+    carregarEstado();
+  } else {
+    $('nao-encontrada').hidden = true;
+    pedirCodigo('');
+  }
+})();
+</script>
+</body>
+</html>
