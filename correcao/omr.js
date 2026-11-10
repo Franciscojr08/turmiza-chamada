@@ -23,8 +23,8 @@
 
     var VERSAO = 1;
     var L = {
-        LARGURA: 180, MARCA: 6, MARGEM_MARCA: 3, ESQUERDA: 12, LARGURA_GRADE: 156, TOPO_GRADE: 32,
-        CABECALHO_LETRAS: 5, RODAPE: 8, ROTULO: 9, QR_X: 140, QR_Y: 4, QR_TAMANHO: 25, MAX_LINHAS: 25,
+        LARGURA: 180, MARCA: 6, MARGEM_MARCA: 3, ESQUERDA: 12, LARGURA_GRADE: 156, TOPO_GRADE: 22,
+        CABECALHO_LETRAS: 5, RODAPE: 6, ROTULO: 9, QR_X: 14, QR_MARGEM: 4, QR_TAMANHO: 25, MAX_LINHAS: 25,
     };
 
     /** Limiares da leitura, na escala 0 (papel) a 1 (preto da marca). */
@@ -42,12 +42,12 @@
         var letras = 'ABCDE'.slice(0, alternativas).split('');
         var colunas = questoes <= 5 ? 1 : Math.max(2, Math.ceil(questoes / L.MAX_LINHAS));
         var linhas = Math.ceil(questoes / colunas);
-        var passoY = linhas <= 15 ? 7.0 : (linhas <= 20 ? 6.2 : 5.1);
+        var passoY = linhas <= 15 ? 7.0 : (linhas <= 20 ? 6.2 : 4.4);
         var larguraColuna = L.LARGURA_GRADE / colunas;
         var passoX = Math.min(8.0, (larguraColuna - L.ROTULO) / alternativas);
         var diametro = Math.min(5.2, passoX * 0.8, passoY * 0.82);
         var conteudo = L.ROTULO + alternativas * passoX;
-        var altura = L.TOPO_GRADE + L.CABECALHO_LETRAS + linhas * passoY + L.RODAPE;
+        var altura = L.TOPO_GRADE + L.CABECALHO_LETRAS + linhas * passoY + L.QR_MARGEM + L.QR_TAMANHO + L.RODAPE;
         var centro = L.MARGEM_MARCA + L.MARCA / 2;
         var lista = [];
 
@@ -86,7 +86,7 @@
                 { x: L.LARGURA - centro, y: mm(altura - centro) },
             ],
             questoes: lista,
-            qr: { x: L.QR_X, y: L.QR_Y, tamanho: L.QR_TAMANHO },
+            qr: { x: L.QR_X, y: mm(altura - L.RODAPE - L.QR_TAMANHO), tamanho: L.QR_TAMANHO },
         };
     }
 
@@ -230,7 +230,7 @@
     /**
      * As quatro marcas, na ordem do quadro: superior esquerda, superior direita, inferior esquerda, inferior direita.
      * Com o QR, só valem quadrados do tamanho esperado (a marca tem 6 mm e o QR uns 22 mm) e o QR fica perto da marca
-     * superior direita, o que resolve a foto girada.
+     * inferior esquerda, o que resolve a foto girada.
      */
     function escolherMarcas(candidatos, qr, layout) {
         var lista = candidatos;
@@ -276,13 +276,14 @@
             return null;
         }
 
-        // Qual canto da imagem é o superior direito do quadro: o mais perto do QR; sem QR, o quadro é mais largo que alto.
+        // Qual canto da imagem é o inferior esquerdo do quadro: o mais perto do QR; sem QR, o quadro é mais largo que alto.
         var giro = 1;
 
         if (qr) {
             var centroQr = qr.cantos.reduce(function (s, p) { return { x: s.x + p.x / 4, y: s.y + p.y / 4 }; }, { x: 0, y: 0 });
             var perto = cantos.map(function (p) { return distancia(p, centroQr); });
-            giro = perto.indexOf(Math.min.apply(null, perto));
+            // O QR fica perto da marca inferior esquerda, que vem duas posições depois da superior direita.
+            giro = (perto.indexOf(Math.min.apply(null, perto)) + 2) % 4;
         } else if (distancia(cantos[0], cantos[1]) < distancia(cantos[1], cantos[2])) {
             giro = 2;
         }
@@ -304,7 +305,7 @@
     function preverPeloQr(candidatos, qr, layout) {
         var modulos = qr.modulos || 41;
         var zona = L.QR_TAMANHO * 2 / (modulos + 4);
-        var x0 = L.QR_X + zona, y0 = L.QR_Y + zona, x1 = L.QR_X + L.QR_TAMANHO - zona, y1 = L.QR_Y + L.QR_TAMANHO - zona;
+        var x0 = layout.qr.x + zona, y0 = layout.qr.y + zona, x1 = layout.qr.x + L.QR_TAMANHO - zona, y1 = layout.qr.y + L.QR_TAMANHO - zona;
         var hq = homografia([{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }], qr.cantos);
 
         if (!hq) {
@@ -312,7 +313,7 @@
         }
 
         var escala = (distancia(qr.cantos[0], qr.cantos[1]) + distancia(qr.cantos[1], qr.cantos[2])) / 2 / (x1 - x0);
-        var centroQr = { x: L.QR_X + L.QR_TAMANHO / 2, y: L.QR_Y + L.QR_TAMANHO / 2 };
+        var centroQr = { x: layout.qr.x + L.QR_TAMANHO / 2, y: layout.qr.y + L.QR_TAMANHO / 2 };
         var usadas = [];
         var achadas = [];
 
