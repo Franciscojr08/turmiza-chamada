@@ -131,6 +131,122 @@
         };
     }
 
+    /** A versão de um QR de caderno (de qualquer versão), para avisar que o caderno impresso é antigo; null se não for. */
+    function versaoDoQr(texto) {
+        var achado = /(?:^|[#&?]c=)(\d{1,3})\.\d{1,10}\.\d{1,10}\.\d{1,3}\.[45]\.[a-f0-9]{12}(?:$|&)/.exec(String(texto || ''));
+
+        return achado ? parseInt(achado[1], 10) : null;
+    }
+
+    /** Média 3×3 em tons de cinza (devolve RGBA): apaga o ruído fino da câmera, que quebra o padrão de busca do jsQR. */
+    function suavizar(rgba, largura, altura) {
+        var cinza = paraCinza(rgba, largura, altura);
+        var saida = new Uint8ClampedArray(largura * altura * 4);
+
+        for (var y = 0; y < altura; y++) {
+            for (var x = 0; x < largura; x++) {
+                var soma = 0;
+                var conta = 0;
+
+                for (var dy = -1; dy <= 1; dy++) {
+                    var yy = y + dy;
+
+                    if (yy < 0 || yy >= altura) {
+                        continue;
+                    }
+
+                    for (var dx = -1; dx <= 1; dx++) {
+                        var xx = x + dx;
+
+                        if (xx >= 0 && xx < largura) {
+                            soma += cinza[yy * largura + xx];
+                            conta++;
+                        }
+                    }
+                }
+
+                var j = (y * largura + x) * 4;
+                saida[j] = saida[j + 1] = saida[j + 2] = soma / conta;
+                saida[j + 3] = 255;
+            }
+        }
+
+        return saida;
+    }
+
+    /** Reduz pela média dos pixels de cada bloco `fator`×`fator` (devolve RGBA em cinza e o tamanho novo). */
+    function reduzir(rgba, largura, altura, fator) {
+        var cinza = paraCinza(rgba, largura, altura);
+        var nl = Math.floor(largura / fator);
+        var na = Math.floor(altura / fator);
+        var saida = new Uint8ClampedArray(nl * na * 4);
+
+        for (var y = 0; y < na; y++) {
+            var y0 = Math.floor(y * fator);
+            var y1 = Math.max(y0 + 1, Math.floor((y + 1) * fator));
+
+            for (var x = 0; x < nl; x++) {
+                var x0 = Math.floor(x * fator);
+                var x1 = Math.max(x0 + 1, Math.floor((x + 1) * fator));
+                var soma = 0;
+
+                for (var yy = y0; yy < y1; yy++) {
+                    for (var xx = x0; xx < x1; xx++) {
+                        soma += cinza[yy * largura + xx];
+                    }
+                }
+
+                var j = (y * nl + x) * 4;
+                saida[j] = saida[j + 1] = saida[j + 2] = soma / ((y1 - y0) * (x1 - x0));
+                saida[j + 3] = 255;
+            }
+        }
+
+        return { data: saida, largura: nl, altura: na };
+    }
+
+    /**
+     * Procura o QR na foto em etapas: suavizada, reduzida pela média (2× e 1,5×), suavizada duas vezes e, por último,
+     * como veio (a etapa mais lenta). A foto de celular em resolução cheia tem ruído de pixel que, reduzido sem média,
+     * desmancha os quadrados de canto do QR para o jsQR e o deixa lento. O caderno é impresso em preto no branco, então
+     * só a última etapa tenta o QR invertido. Os cantos voltam na escala da foto recebida. Devolve null se nada achar.
+     */
+    function acharQr(rgba, largura, altura, jsQR) {
+        var inteira = function (data) { return { data: data, largura: largura, altura: altura, fator: 1 }; };
+        var reduzida = function (fator) { var r = reduzir(rgba, largura, altura, fator); r.fator = fator; return r; };
+        var suave = null;
+        var etapas = [
+            function () { suave = suavizar(rgba, largura, altura); return inteira(suave); },
+            function () { return reduzida(2); },
+            function () { return reduzida(1.5); },
+            function () { return inteira(suavizar(suave, largura, altura)); },
+            function () { var r = inteira(rgba); r.inverter = true; return r; },
+        ];
+
+        for (var i = 0; i < etapas.length; i++) {
+            var imagem = etapas[i]();
+
+            if (imagem.largura < 100 || imagem.altura < 100) {
+                continue;
+            }
+
+            var codigo = jsQR(imagem.data, imagem.largura, imagem.altura, { inversionAttempts: imagem.inverter ? 'attemptBoth' : 'dontInvert' });
+
+            if (codigo) {
+                var f = imagem.fator;
+                var canto = function (p) { return { x: p.x * f, y: p.y * f }; };
+
+                return {
+                    texto: codigo.data,
+                    modulos: 17 + 4 * codigo.version,
+                    cantos: [codigo.location.topLeftCorner, codigo.location.topRightCorner, codigo.location.bottomRightCorner, codigo.location.bottomLeftCorner].map(canto),
+                };
+            }
+        }
+
+        return null;
+    }
+
     function paraCinza(rgba, largura, altura) {
         var cinza = new Uint8ClampedArray(largura * altura);
 
@@ -555,6 +671,8 @@
         VERSAO: VERSAO,
         layoutCaderno: layoutCaderno,
         lerToken: lerToken,
+        versaoDoQr: versaoDoQr,
+        acharQr: acharQr,
         paraCinza: paraCinza,
         binarizar: binarizar,
         componentes: componentes,
