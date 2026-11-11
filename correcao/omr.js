@@ -21,10 +21,15 @@
 })(typeof self !== 'undefined' ? self : this, function () {
     'use strict';
 
-    var VERSAO = 1;
+    var VERSAO = 2;
     var L = {
-        LARGURA: 180, MARCA: 6, MARGEM_MARCA: 3, ESQUERDA: 12, LARGURA_GRADE: 156, TOPO_GRADE: 22,
-        CABECALHO_LETRAS: 5, RODAPE: 6, ROTULO: 9, QR_X: 14, QR_MARGEM: 4, QR_TAMANHO: 25, MAX_LINHAS: 25,
+        LARGURA: 180, MARCA: 5, TOPO_CAIXAS: 8, POR_CAIXA: 10, MAX_QUESTOES: 100, QR_MARGEM: 4, RODAPE: 3, ESPACO_LINHAS: 5,
+    };
+    /** Os três degraus de tamanho das caixas: até 2 caixas, de 3 a 6 e de 7 a 10 (iguais aos do PHP). */
+    var DEGRAUS = {
+        grande: { porLinha: 2, margem: 4, rotulo: 10, passoX: 9.5, passoY: 8.5, diametro: 6.2, letras: 7, espaco: 14, qr: 34 },
+        medio: { porLinha: 3, margem: 3, rotulo: 8, passoX: 7.5, passoY: 5.4, diametro: 4.6, letras: 6, espaco: 10, qr: 28 },
+        pequeno: { porLinha: 5, margem: 1.5, rotulo: 6, passoX: 4.9, passoY: 5.4, diametro: 4, letras: 5, espaco: 3, qr: 28 },
     };
 
     /** Limiares da leitura, na escala 0 (papel) a 1 (preto da marca). */
@@ -35,58 +40,66 @@
         return Math.round(valor * 100) / 100;
     }
 
-    /** A mesma conta do App\Support\CadernoLayout::para(). */
+    /** A mesma conta do App\Support\CadernoLayout::para(): caixas de até 10 questões, centralizadas, e o QR embaixo. */
     function layoutCaderno(questoes, alternativas) {
-        questoes = Math.max(1, questoes);
+        questoes = Math.max(1, Math.min(L.MAX_QUESTOES, questoes));
         alternativas = alternativas === 4 ? 4 : 5;
         var letras = 'ABCDE'.slice(0, alternativas).split('');
-        var colunas = questoes <= 5 ? 1 : Math.max(2, Math.ceil(questoes / L.MAX_LINHAS));
-        var linhas = Math.ceil(questoes / colunas);
-        var passoY = linhas <= 15 ? 7.0 : (linhas <= 20 ? 6.2 : 4.4);
-        var larguraColuna = L.LARGURA_GRADE / colunas;
-        var passoX = Math.min(8.0, (larguraColuna - L.ROTULO) / alternativas);
-        var diametro = Math.min(5.2, passoX * 0.8, passoY * 0.82);
-        var conteudo = L.ROTULO + alternativas * passoX;
-        var altura = L.TOPO_GRADE + L.CABECALHO_LETRAS + linhas * passoY + L.QR_MARGEM + L.QR_TAMANHO + L.RODAPE;
-        var centro = L.MARGEM_MARCA + L.MARCA / 2;
+        var totalCaixas = Math.ceil(questoes / L.POR_CAIXA);
+        var d = DEGRAUS[totalCaixas <= 2 ? 'grande' : (totalCaixas <= 6 ? 'medio' : 'pequeno')];
+        var larguraCaixa = 2 * d.margem + d.rotulo + alternativas * d.passoX;
+        var caixas = [];
         var lista = [];
+        var y = L.TOPO_CAIXAS;
 
-        for (var coluna = 0; coluna < colunas; coluna++) {
-            var inicio = L.ESQUERDA + coluna * larguraColuna + (larguraColuna - conteudo) / 2;
+        for (var inicio = 0; inicio < totalCaixas; inicio += d.porLinha) {
+            var naFileira = Math.min(d.porLinha, totalCaixas - inicio);
+            var x = (L.LARGURA - (naFileira * larguraCaixa + (naFileira - 1) * d.espaco)) / 2;
+            var alturaFileira = 0;
 
-            for (var linha = 0; linha < linhas; linha++) {
-                var indice = coluna * linhas + linha;
+            for (var caixa = inicio; caixa < inicio + naFileira; caixa++) {
+                var primeira = caixa * L.POR_CAIXA;
+                var linhas = Math.min(L.POR_CAIXA, questoes - primeira);
+                var altura = 2 * d.margem + d.letras + linhas * d.passoY;
+                var xBolha = (function (x0) {
+                    return function (k) { return mm(x0 + d.margem + d.rotulo + d.passoX * (k + 0.5)); };
+                })(x);
+                alturaFileira = Math.max(alturaFileira, altura);
 
-                if (indice >= questoes) {
-                    break;
+                for (var linha = 0; linha < linhas; linha++) {
+                    var yBolha = mm(y + d.margem + d.letras + d.passoY * (linha + 0.5));
+                    var bolhas = letras.map(function (letra, k) {
+                        return { letra: letra, x: xBolha(k), y: yBolha };
+                    });
+
+                    lista.push({ indice: primeira + linha, x: mm(x + d.margem), y: yBolha, bolhas: bolhas });
                 }
 
-                var y = mm(L.TOPO_GRADE + L.CABECALHO_LETRAS + passoY * (linha + 0.5));
-                var bolhas = letras.map(function (letra, k) {
-                    return { letra: letra, x: mm(inicio + L.ROTULO + passoX * (k + 0.5)), y: y };
-                });
-
-                lista.push({ indice: indice, x: mm(inicio), y: y, bolhas: bolhas });
+                caixas.push({ x: mm(x), y: mm(y), largura: mm(larguraCaixa), altura: mm(altura) });
+                x += larguraCaixa + d.espaco;
             }
+
+            y += alturaFileira + L.ESPACO_LINHAS;
         }
 
-        lista.sort(function (a, b) { return a.indice - b.indice; });
+        var topoQr = y - L.ESPACO_LINHAS + L.QR_MARGEM;
+        var total = topoQr + d.qr + L.RODAPE;
+        var centro = L.MARCA / 2;
 
         return {
-            colunas: colunas,
-            linhas: linhas,
-            altura: mm(altura),
-            diametro: mm(diametro),
-            passoX: mm(passoX),
-            passoY: mm(passoY),
+            altura: mm(total),
+            diametro: d.diametro,
+            passoX: d.passoX,
+            passoY: d.passoY,
             marcas: [
                 { x: centro, y: centro },
                 { x: L.LARGURA - centro, y: centro },
-                { x: centro, y: mm(altura - centro) },
-                { x: L.LARGURA - centro, y: mm(altura - centro) },
+                { x: centro, y: mm(total - centro) },
+                { x: L.LARGURA - centro, y: mm(total - centro) },
             ],
+            caixas: caixas,
             questoes: lista,
-            qr: { x: L.QR_X, y: mm(altura - L.RODAPE - L.QR_TAMANHO), tamanho: L.QR_TAMANHO },
+            qr: { x: mm((L.LARGURA - d.qr) / 2), y: mm(topoQr), tamanho: d.qr },
         };
     }
 
@@ -229,8 +242,8 @@
 
     /**
      * As quatro marcas, na ordem do quadro: superior esquerda, superior direita, inferior esquerda, inferior direita.
-     * Com o QR, só valem quadrados do tamanho esperado (a marca tem 6 mm e o QR uns 22 mm) e o QR fica perto da marca
-     * inferior esquerda, o que resolve a foto girada.
+     * Com o QR, só valem quadrados do tamanho esperado (a marca tem 5 mm e o QR uns 28 a 34 mm) e o QR fica no meio da
+     * borda de baixo do quadro, o que resolve a foto girada.
      */
     function escolherMarcas(candidatos, qr, layout) {
         var lista = candidatos;
@@ -245,7 +258,8 @@
 
         if (qr) {
             var ladoQr = (distancia(qr.cantos[0], qr.cantos[1]) + distancia(qr.cantos[1], qr.cantos[2])) / 2;
-            var esperado = ladoQr * 6 / 22.5;
+            // Os cantos do jsQR são os de fora dos quadrados de posição, sem a margem branca: uns 91% do QR impresso.
+            var esperado = ladoQr * L.MARCA / (layout.qr.tamanho * 0.91);
             lista = lista.filter(function (c) {
                 var lado = Math.sqrt(c.area);
 
@@ -276,14 +290,19 @@
             return null;
         }
 
-        // Qual canto da imagem é o inferior esquerdo do quadro: o mais perto do QR; sem QR, o quadro é mais largo que alto.
+        // Qual lado da imagem é a borda de baixo do quadro: a mais perto do QR; sem QR, o quadro é mais largo que alto.
         var giro = 1;
 
         if (qr) {
             var centroQr = qr.cantos.reduce(function (s, p) { return { x: s.x + p.x / 4, y: s.y + p.y / 4 }; }, { x: 0, y: 0 });
-            var perto = cantos.map(function (p) { return distancia(p, centroQr); });
-            // O QR fica perto da marca inferior esquerda, que vem duas posições depois da superior direita.
-            giro = (perto.indexOf(Math.min.apply(null, perto)) + 2) % 4;
+            var perto = cantos.map(function (p, i) {
+                var q = cantos[(i + 1) % 4];
+
+                return distancia({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }, centroQr);
+            });
+            // No sentido horário, a borda de baixo vai do canto inferior direito (i) ao inferior esquerdo (i + 1); o
+            // superior direito vem três posições depois do inferior direito.
+            giro = (perto.indexOf(Math.min.apply(null, perto)) + 3) % 4;
         } else if (distancia(cantos[0], cantos[1]) < distancia(cantos[1], cantos[2])) {
             giro = 2;
         }
@@ -304,8 +323,9 @@
      */
     function preverPeloQr(candidatos, qr, layout) {
         var modulos = qr.modulos || 41;
-        var zona = L.QR_TAMANHO * 2 / (modulos + 4);
-        var x0 = layout.qr.x + zona, y0 = layout.qr.y + zona, x1 = layout.qr.x + L.QR_TAMANHO - zona, y1 = layout.qr.y + L.QR_TAMANHO - zona;
+        var tamanho = layout.qr.tamanho;
+        var zona = tamanho * 2 / (modulos + 4);
+        var x0 = layout.qr.x + zona, y0 = layout.qr.y + zona, x1 = layout.qr.x + tamanho - zona, y1 = layout.qr.y + tamanho - zona;
         var hq = homografia([{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }], qr.cantos);
 
         if (!hq) {
@@ -313,7 +333,7 @@
         }
 
         var escala = (distancia(qr.cantos[0], qr.cantos[1]) + distancia(qr.cantos[1], qr.cantos[2])) / 2 / (x1 - x0);
-        var centroQr = { x: layout.qr.x + L.QR_TAMANHO / 2, y: layout.qr.y + L.QR_TAMANHO / 2 };
+        var centroQr = { x: layout.qr.x + tamanho / 2, y: layout.qr.y + tamanho / 2 };
         var usadas = [];
         var achadas = [];
 
@@ -469,7 +489,7 @@
 
         var largura = (distancia(marcas[0], marcas[1]) + distancia(marcas[2], marcas[3])) / 2;
         var alturaFoto = (distancia(marcas[0], marcas[2]) + distancia(marcas[1], marcas[3])) / 2;
-        var esperada = (L.LARGURA - L.MARCA - 2 * L.MARGEM_MARCA) / (layout.altura - L.MARCA - 2 * L.MARGEM_MARCA);
+        var esperada = (L.LARGURA - L.MARCA) / (layout.altura - L.MARCA);
 
         if (alturaFoto < 1 || Math.abs(largura / alturaFoto / esperada - 1) > 0.45) {
             return { ok: false, motivo: 'marcas' };
