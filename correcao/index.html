@@ -322,13 +322,10 @@
 
   function acharQr(canvas, contexto) {
     var imagem = contexto.getImageData(0, 0, canvas.width, canvas.height);
-    var codigo = window.jsQR(imagem.data, canvas.width, canvas.height, { inversionAttempts: 'attemptBoth' });
+    var qr = window.TurmizaOmr.acharQr(imagem.data, canvas.width, canvas.height, window.jsQR);
 
-    if (codigo) {
-      return Promise.resolve({
-        imagem: imagem,
-        qr: { texto: codigo.data, modulos: 17 + 4 * codigo.version, cantos: [codigo.location.topLeftCorner, codigo.location.topRightCorner, codigo.location.bottomRightCorner, codigo.location.bottomLeftCorner] },
-      });
+    if (qr) {
+      return Promise.resolve({ imagem: imagem, qr: qr });
     }
 
     if (! ('BarcodeDetector' in window)) {
@@ -354,13 +351,18 @@
       canvas.width = Math.round(bitmap.width * escala);
       canvas.height = Math.round(bitmap.height * escala);
       var contexto = canvas.getContext('2d', { willReadFrequently: true });
+      // Redução de boa qualidade (média dos pixels): sem isso, o ruído da foto em resolução cheia atrapalha o QR.
+      contexto.imageSmoothingEnabled = true;
+      contexto.imageSmoothingQuality = 'high';
       contexto.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
 
       return acharQr(canvas, contexto).then(function (achado) {
         var token = achado.qr ? window.TurmizaOmr.lerToken(achado.qr.texto) : null;
 
         if (achado.qr && ! token) {
-          throw new Error('Esse QR não é de um caderno de respostas do Turmiza.');
+          throw new Error(window.TurmizaOmr.versaoDoQr(achado.qr.texto) !== null
+            ? 'Este caderno foi impresso numa versão antiga do Turmiza. Gere o caderno de respostas de novo e imprima.'
+            : 'Esse QR não é de um caderno de respostas do Turmiza.');
         }
 
         token = token || tokenDoLink;
