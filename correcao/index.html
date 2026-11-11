@@ -525,7 +525,7 @@
     botao.disabled = true;
     erro('');
 
-    chamar({ acao: 'correcao_enviar', c: leitura.token.token, r: leitura.respostas.join('') }).then(function (r) {
+    chamar({ acao: 'correcao_enviar', q: leitura.token.token, r: leitura.respostas.join('') }).then(function (r) {
       botao.disabled = false;
 
       if (r && r.ok) {
