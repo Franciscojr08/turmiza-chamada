@@ -11,6 +11,8 @@
   O QR da tela do Turmiza traz, depois do #, o App da Web do professor (u, e d no Google Workspace) e a sessão (s); a
   página guarda isso no celular e pede uma vez o código de 6 números. O QR de cada caderno traz o código do caderno (c).
   A foto é lida aqui mesmo (omr.js, com o jsQR para o QR): só as letras vão ao script, por GET e sem cookies.
+  Duas etapas: "Calcular nota" manda as letras e espera o resultado que o Turmiza publica no script (a nota já salva,
+  e na AV a situação na disciplina); "Enviar nota" deixa o pedido no script, e o Turmiza manda o resultado ao aluno.
   Fonte: resources/pagina-correcao/, no repositório do Turmiza. jsQR.js: biblioteca jsQR 1.4.0 (Apache-2.0).
 -->
 <style>
@@ -43,9 +45,73 @@
   .ok { border: 1px solid #bbf7d0; background: #f0fdf4; color: #166534; border-radius: 12px; padding: 12px 14px; font-size: 15px; margin-bottom: 16px; font-weight: 600; }
   .contador { display: flex; align-items: baseline; gap: 8px; margin: 0 0 16px; color: #0b2942; }
   .contador strong { font-size: 34px; }
-  .lidos { list-style: none; padding: 0; margin: 18px 0 0; font-size: 14px; color: #475569; display: flex; flex-wrap: wrap; gap: 6px; }
-  .lidos li { background: #e2f6ea; color: #166534; border-radius: 99px; padding: 4px 10px; font-weight: 600; }
+  table.lidos { width: 100%; border-collapse: collapse; margin-top: 18px; background: #fff; border: 1px solid #e2e8f0; font-size: 13px; }
+  table.lidos th { text-align: left; background: #eef4f8; color: #0b2942; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; padding: 8px; }
+  table.lidos td { padding: 9px 8px; border-top: 1px solid #eef2f6; }
+  table.lidos tbody tr { cursor: pointer; }
+  table.lidos td.mat { font-family: ui-monospace, monospace; font-size: 12px; color: #475569; }
+  table.lidos td.nota, table.lidos th.nota { text-align: right; }
+  table.lidos td.nota { font-weight: 800; color: #0b2942; }
+  table.lidos td.env, table.lidos th.env { text-align: center; white-space: nowrap; }
+  .ic-ok { color: #16a34a; } .ic-falha { color: #dc2626; } .ic-pend { color: #94a3b8; } .ic-fora { color: #cbd5e1; }
   .aluno { font-size: 22px; font-weight: 800; color: #0b2942; margin: 0 0 4px; }
+  .matricula { font-size: 13px; color: #64748b; margin: -2px 0 12px; font-family: ui-monospace, monospace; }
+  .calc { text-align: center; padding: 30px 4px 10px; }
+  .calc .roda { margin: 0 auto 16px; }
+  .calc h2 { margin: 0 0 6px; color: #0b2942; font-size: 19px; }
+  .cartao { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 14px; margin-bottom: 14px; }
+  .cartao h3 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #64748b; }
+  .nota-grande { display: flex; align-items: baseline; gap: 8px; margin: 2px 0 6px; }
+  .nota-grande strong { font-size: 46px; color: #0b2942; line-height: 1; }
+  .nota-grande span { font-size: 17px; color: #64748b; font-weight: 600; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
+  .chip { font-size: 12.5px; font-weight: 700; border-radius: 99px; padding: 4px 10px; }
+  .chip.verde { background: #dcfce7; color: #166534; } .chip.vermelho { background: #fee2e2; color: #991b1b; } .chip.cinza { background: #f1f5f9; color: #475569; }
+  .salva { font-size: 12.5px; color: #166534; margin: 10px 0 0; font-weight: 600; }
+  .questoes { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 10px; }
+  .q { border-radius: 10px; padding: 6px 2px; text-align: center; font-size: 12px; font-weight: 700; line-height: 1.25; }
+  .q.ac { background: #dcfce7; color: #166534; } .q.er { background: #fee2e2; color: #991b1b; } .q.an { background: #f1f5f9; color: #64748b; }
+  .q small { display: block; font-weight: 600; font-size: 10.5px; opacity: .85; }
+  details summary { cursor: pointer; font-size: 13px; font-weight: 700; color: #159bd3; margin-top: 10px; }
+  .situacao { border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; }
+  .situacao.aprovado { background: #dcfce7; color: #14532d; } .situacao.recuperacao { background: #fef3c7; color: #78350f; }
+  .situacao.reprovado { background: #fee2e2; color: #7f1d1d; } .situacao.parcial { background: #e0f2fe; color: #0c4a6e; }
+  .situacao .r { font-size: 20px; font-weight: 800; margin: 0 0 4px; }
+  .situacao p { margin: 0; font-size: 13px; line-height: 1.45; }
+  table.boletim { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.boletim th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #64748b; padding: 4px 6px; border-bottom: 1px solid #e2e8f0; }
+  table.boletim .n { text-align: right; white-space: nowrap; }
+  table.boletim td { padding: 6px; border-bottom: 1px solid #f1f5f9; }
+  table.boletim tr.grupo td { background: #eef4f8; color: #0b2942; font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; padding: 5px 6px; }
+  table.boletim tr.total td { font-weight: 700; color: #0b2942; }
+  table.boletim tr.esta td { background: #e0f2fe; font-weight: 700; }
+  .tag { font-size: 10px; font-weight: 800; background: #159bd3; color: #fff; border-radius: 6px; padding: 1px 5px; margin-left: 4px; }
+  .medias { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+  .media { border-radius: 12px; border: 1px solid #e2e8f0; padding: 10px; background: #f8fafc; }
+  .media.final { border-color: #0b2942; background: #f0f7fc; }
+  .media .l { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .04em; }
+  .media .v { font-size: 24px; font-weight: 800; color: #0b2942; margin-top: 2px; }
+  .media .s { font-size: 11.5px; color: #64748b; margin-top: 2px; line-height: 1.35; }
+  .conta { font-size: 12.5px; color: #334155; background: #f8fafc; border-radius: 10px; padding: 9px 10px; margin-top: 10px; line-height: 1.5; }
+  .avs-passo { display: flex; justify-content: space-between; align-items: center; gap: 10px; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; font-size: 14px; background: #f8fafc; }
+  .avs-passo strong { font-size: 20px; color: #0b2942; }
+  .avs-passo.riscado strong { text-decoration: line-through; color: #94a3b8; }
+  .avs-passo.final { border-color: #16a34a; background: #f0fdf4; }
+  .avs-passo small { color: #64748b; display: block; font-size: 12px; }
+  .seta { text-align: center; color: #94a3b8; font-size: 13px; margin: 6px 0; }
+  .canal { border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; font-size: 13.5px; }
+  .canal .cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 700; color: #0b2942; }
+  .canal .det { color: #64748b; font-size: 12.5px; margin-top: 4px; line-height: 1.4; }
+  .canal .det.ruim { color: #b91c1c; }
+  .msg-app { margin-top: 8px; background: #f1f5f9; border-radius: 12px; padding: 9px 10px; font-size: 12.5px; color: #1e293b; line-height: 1.45; word-break: break-word; }
+  .msg-app b { display: block; font-size: 12px; margin-bottom: 2px; }
+  .medidor { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 11.5px; font-weight: 700; color: #166534; }
+  .barra { flex: 1; height: 6px; border-radius: 99px; background: #e2e8f0; overflow: hidden; }
+  .barra i { display: block; height: 100%; background: #16a34a; }
+  .medidor.passou { color: #b91c1c; } .medidor.passou .barra i { background: #dc2626; }
+  .estado { font-size: 12px; font-weight: 700; border-radius: 99px; padding: 2px 9px; white-space: nowrap; }
+  .estado.vai { background: #e0f2fe; color: #075985; } .estado.ok { background: #dcfce7; color: #166534; }
+  .estado.falha { background: #fee2e2; color: #991b1b; } .estado.fora { background: #f1f5f9; color: #64748b; }
   canvas.previa { width: 100%; border-radius: 12px; border: 1px solid #cbd5e1; background: #fff; margin: 8px 0 14px; }
   .grade { display: grid; gap: 6px; margin: 4px 0 18px; }
   .linha { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 10px; }
@@ -102,19 +168,64 @@
       <input id="foto" type="file" accept="image/*" capture="environment" hidden>
       <p class="dica">Enquadre o quadro de respostas inteiro, com os 4 quadrados pretos dos cantos e o QR. Papel reto, sem sombra forte e sem reflexo.</p>
       <button class="botao claro" id="a-mao" type="button" hidden>Preencher à mão (sem foto)</button>
-      <ul class="lidos" id="lidos"></ul>
+      <table class="lidos" id="tabela-lidos" hidden>
+        <thead><tr><th>Matrícula</th><th>Aluno</th><th class="nota">Nota</th><th class="env">Enviado</th></tr></thead>
+        <tbody id="lidos"></tbody>
+      </table>
+      <p class="dica" id="dica-lidos" hidden>Toque numa linha para abrir o resultado de novo (e enviar, se ainda não foi). ✉ e-mail, 📱 app: verde enviado, vermelho não enviado, cinza ainda não enviado.</p>
     </section>
 
     <section id="tela-revisao" hidden>
       <p class="aluno" id="aluno"></p>
+      <p class="matricula" id="aluno-matricula"></p>
       <div id="aviso-leitura" class="aviso" hidden></div>
       <canvas id="previa" class="previa" hidden></canvas>
       <p class="dica" style="margin-top:0">Confira as marcações. Toque numa letra para trocar; as linhas em amarelo ficaram em dúvida.</p>
       <div class="grade" id="grade"></div>
       <div class="acoes">
-        <button class="botao" id="enviar" type="button">Enviar para o Turmiza</button>
+        <button class="botao" id="calcular" type="button">🧮 Calcular nota</button>
         <label class="botao claro" for="foto">Fotografar de novo</label>
         <button class="botao claro" id="cancelar" type="button">Cancelar</button>
+      </div>
+    </section>
+
+    <section id="tela-calculando" hidden>
+      <div class="calc" id="calculando-roda">
+        <div class="roda" aria-hidden="true"></div>
+        <h2 id="calculando-titulo"></h2>
+        <p class="dica">Leva alguns segundos. Deixe a tela de notas da prova aberta no computador.</p>
+      </div>
+      <div id="calculando-demora" hidden>
+        <div class="aviso"><b>O Turmiza não respondeu.</b><br><span id="calculando-demora-texto"></span></div>
+        <div class="acoes">
+          <button class="botao azul" id="esperar-mais" type="button">Esperar mais</button>
+          <button class="botao claro" id="proximo-demora" type="button">Ir para o próximo caderno</button>
+        </div>
+        <p class="dica">Se você for para o próximo, a nota aparece na tabela da tela principal quando chegar.</p>
+      </div>
+    </section>
+
+    <section id="tela-resultado" hidden>
+      <p class="aluno" id="resultado-aluno"></p>
+      <p class="matricula" id="resultado-matricula"></p>
+      <div class="cartao">
+        <h3 id="resultado-rotulo">Nota</h3>
+        <div class="nota-grande"><strong id="resultado-nota"></strong><span id="resultado-maximo"></span></div>
+        <div class="chips" id="resultado-chips"></div>
+        <div id="resultado-questoes"></div>
+        <p class="salva" id="resultado-salva"></p>
+      </div>
+      <div class="cartao" id="resultado-situacao" hidden></div>
+      <div class="cartao" id="resultado-avs" hidden></div>
+      <div class="cartao">
+        <h3>Enviar nota ao aluno</h3>
+        <div id="canais"></div>
+        <div id="envio-aviso" class="aviso" hidden style="margin:8px 0 0"></div>
+        <div class="acoes" style="margin-top:10px">
+          <button class="botao" id="enviar-nota" type="button">Enviar nota</button>
+          <button class="botao claro" id="proximo" type="button">Próximo caderno</button>
+        </div>
+        <p class="dica" id="envio-dica" hidden></p>
       </div>
     </section>
 
@@ -148,8 +259,13 @@
 
   var $ = function (id) { return document.getElementById(id); };
   var estado = null;
-  var leitura = null;  // { token, nome, respostas: [], duvidas: [] }
-  var telas = ['tela-codigo', 'tela-principal', 'tela-revisao', 'tela-fim'];
+  var leitura = null;  // { token, respostas: [], duvidas: [] }
+  var atual = null;    // o resultado aberto ou esperado: { a: assinatura do aluno, t: instante da leitura }
+  var espera = null;   // o setTimeout da espera em curso
+  var telas = ['tela-codigo', 'tela-principal', 'tela-revisao', 'tela-calculando', 'tela-resultado', 'tela-fim'];
+  // Intervalo das perguntas ao script e quantas antes de avisar que o Turmiza não respondeu (40 s); os testes trocam.
+  var ESPERA_MS = typeof window.TurmizaCorrecaoEspera === 'number' ? window.TurmizaCorrecaoEspera : 2000;
+  var TENTATIVAS = typeof window.TurmizaCorrecaoTentativas === 'number' ? window.TurmizaCorrecaoTentativas : 20;
 
   function ler() {
     try {
@@ -243,23 +359,78 @@
     $('codigo').focus();
   }
 
+  function nomeDe(a) {
+    return estado.alunos[a] ? estado.alunos[a][0] : '?';
+  }
+
+  function matriculaDe(a) {
+    return estado.alunos[a] ? estado.alunos[a][1] || '' : '';
+  }
+
+  function el(tag, classe, texto) {
+    var elemento = document.createElement(tag);
+
+    if (classe) {
+      elemento.className = classe;
+    }
+
+    if (texto !== undefined && texto !== null) {
+      elemento.textContent = texto;
+    }
+
+    return elemento;
+  }
+
+  var ICONES = { ok: 'ic-ok', falha: 'ic-falha', '': 'ic-pend', '-': 'ic-fora' };
+  var DICAS = { ok: 'enviado', falha: 'não enviado', '': 'ainda não enviado', '-': 'desligado' };
+
+  function iconeEnvio(simbolo, situacao) {
+    var icone = el('span', ICONES[situacao] || 'ic-pend', simbolo);
+    icone.title = DICAS[situacao] || '';
+
+    return icone;
+  }
+
   function atualizarPrincipal() {
     $('titulo').textContent = estado.titulo;
     $('turma').textContent = 'Turma ' + estado.turma;
     $('alunos-total').textContent = Object.keys(estado.alunos).length;
     $('lidos-total').textContent = estado.lidos.length;
-    var lista = $('lidos');
-    lista.textContent = '';
-    estado.lidos.forEach(function (a) {
-      var item = document.createElement('li');
-      item.textContent = estado.alunos[a] || '?';
-      lista.appendChild(item);
+    var corpo = $('lidos');
+    corpo.textContent = '';
+    var ordem = estado.lidos.slice().sort(function (x, y) { return ((estado.resumos[y] || {}).t || 0) - ((estado.resumos[x] || {}).t || 0); });
+
+    ordem.forEach(function (a) {
+      var resumo = estado.resumos[a] || {};
+      var linha = el('tr');
+      linha.appendChild(el('td', 'mat', matriculaDe(a) || '—'));
+      linha.appendChild(el('td', '', nomeDe(a)));
+      linha.appendChild(el('td', 'nota', resumo.nota || '…'));
+      var envio = el('td', 'env');
+      envio.appendChild(iconeEnvio('✉', resumo.nota ? resumo.email || '' : '-'));
+      envio.appendChild(document.createTextNode(' '));
+      envio.appendChild(iconeEnvio('📱', resumo.nota ? resumo.app || '' : '-'));
+      linha.appendChild(envio);
+      linha.addEventListener('click', function () { abrirResultado(a); });
+      corpo.appendChild(linha);
     });
 
-    var escolhido = tokenDoLink && estado.alunos[tokenDoLink.assinatura];
+    $('tabela-lidos').hidden = ordem.length === 0;
+    $('dica-lidos').hidden = ordem.length === 0;
+
+    var escolhido = tokenDoLink && estado.alunos[tokenDoLink.assinatura] ? nomeDe(tokenDoLink.assinatura) : '';
     $('caderno-escolhido').hidden = ! escolhido;
     $('caderno-escolhido').textContent = escolhido ? 'Caderno de ' + escolhido + ' (do QR que você leu). Fotografe o quadro de respostas ou preencha à mão.' : '';
     $('a-mao').hidden = ! escolhido;
+  }
+
+  function voltarPrincipal(mensagem) {
+    pararEspera();
+    atual = null;
+    pronto();
+    atualizarPrincipal();
+    mostrar('tela-principal');
+    sucesso(mensagem || '');
   }
 
   function carregarEstado() {
@@ -271,6 +442,7 @@
         sessao.tentou = false;
         gravar(sessao);
         estado = r;
+        estado.resumos = r.resumos || {};
         pronto();
         atualizarPrincipal();
         mostrar('tela-principal');
@@ -417,7 +589,8 @@
     };
 
     pronto();
-    $('aluno').textContent = estado.alunos[token.assinatura];
+    $('aluno').textContent = nomeDe(token.assinatura);
+    $('aluno-matricula').textContent = matriculaDe(token.assinatura);
     var aviso = '';
 
     if (resultado && ! resultado.ok) {
@@ -520,9 +693,38 @@
     caderno: 'Este caderno não é desta prova ou não é de um aluno desta turma.',
     versao: 'Este caderno foi impresso antes de a prova mudar. Imprima de novo o caderno deste aluno.',
     respostas: 'As respostas não estão completas. Confira a grade.',
+    leitura: 'Este caderno foi fotografado de novo. Abra o resultado mais recente na tabela.',
   };
 
-  $('enviar').addEventListener('click', function () {
+  /** Recusas que valem para qualquer ação do celular. Devolve true quando já tratou. */
+  function tratarRecusa(r) {
+    if (r && r.motivo === 'fechada') {
+      encerrada();
+    } else if (r && r.motivo === 'bloqueada') {
+      bloqueada();
+    } else if (r && r.motivo === 'codigo') {
+      sessao.k = '';
+      gravar(sessao);
+      pedirCodigo('O código mudou. Digite o código que está na tela do Turmiza.');
+    } else {
+      return false;
+    }
+
+    pararEspera();
+
+    return true;
+  }
+
+  function pararEspera() {
+    if (espera) {
+      clearTimeout(espera);
+      espera = null;
+    }
+  }
+
+  // ------------------------------------------------------------------ calcular nota
+
+  $('calcular').addEventListener('click', function () {
     var botao = this;
     botao.disabled = true;
     erro('');
@@ -531,30 +733,477 @@
       botao.disabled = false;
 
       if (r && r.ok) {
-        if (estado.lidos.indexOf(leitura.token.assinatura) === -1) {
-          estado.lidos.push(leitura.token.assinatura);
+        var a = leitura.token.assinatura;
+
+        if (estado.lidos.indexOf(a) === -1) {
+          estado.lidos.push(a);
         }
 
+        estado.resumos[a] = { t: r.t, h: r.hora, nota: '', email: '', app: '' };
         tokenDoLink = null;
         leitura = null;
-        atualizarPrincipal();
-        mostrar('tela-principal');
-        sucesso('✅ ' + r.nome + ' enviado às ' + r.hora + '. Próximo caderno!');
-      } else if (r && r.motivo === 'fechada') {
-        encerrada();
-      } else if (r && r.motivo === 'bloqueada') {
-        bloqueada();
-      } else if (r && r.motivo === 'codigo') {
-        sessao.k = '';
-        gravar(sessao);
-        pedirCodigo('O código mudou. Digite o código que está na tela do Turmiza.');
-      } else {
+        atual = { a: a, t: r.t };
+        esperarResultado();
+      } else if (! tratarRecusa(r)) {
         erro(mensagens[r && r.motivo] || 'Não foi possível enviar. Tente de novo.');
       }
     }).catch(function () {
       botao.disabled = false;
       erro('Sem conexão. Tente de novo.');
     });
+  });
+
+  /** Pergunta ao script, a cada poucos segundos, se o Turmiza já publicou o resultado desta leitura. */
+  function esperarResultado() {
+    pararEspera();
+    erro('');
+    sucesso('');
+    $('calculando-titulo').textContent = 'Calculando a nota de ' + nomeDe(atual.a);
+    $('calculando-roda').hidden = false;
+    $('calculando-demora').hidden = true;
+    mostrar('tela-calculando');
+    var tentativas = 0;
+    var aguardado = atual;
+
+    function perguntar() {
+      espera = null;
+
+      chamar({ acao: 'correcao_resultado', a: aguardado.a }).then(function (r) {
+        if (atual !== aguardado) {
+          return;
+        }
+
+        if (r && r.ok && r.resultado && r.resultado.t === aguardado.t) {
+          mostrarResultado(r.resultado, r.envio_pendente);
+
+          return;
+        }
+
+        if (r && r.ok === false && tratarRecusa(r)) {
+          return;
+        }
+
+        proxima();
+      }).catch(proxima);
+    }
+
+    function proxima() {
+      if (atual !== aguardado) {
+        return;
+      }
+
+      tentativas++;
+
+      if (tentativas >= TENTATIVAS) {
+        $('calculando-roda').hidden = true;
+        $('calculando-demora').hidden = false;
+        $('calculando-demora-texto').textContent = 'A leitura de ' + nomeDe(aguardado.a) + ' está guardada e a nota é calculada assim que a tela de notas da prova estiver aberta no computador.';
+
+        return;
+      }
+
+      espera = setTimeout(perguntar, ESPERA_MS);
+    }
+
+    perguntar();
+  }
+
+  $('esperar-mais').addEventListener('click', function () { esperarResultado(); });
+  $('proximo-demora').addEventListener('click', function () { voltarPrincipal(''); });
+
+  /** Abre de novo o resultado de um aluno da tabela (ou espera por ele, se o Turmiza ainda não calculou). */
+  function abrirResultado(a) {
+    erro('');
+    sucesso('');
+    carregando('Abrindo o resultado…');
+
+    chamar({ acao: 'correcao_resultado', a: a }).then(function (r) {
+      pronto();
+
+      if (r && r.ok && r.resultado) {
+        atual = { a: a, t: r.resultado.t };
+        mostrarResultado(r.resultado, r.envio_pendente);
+      } else if (r && r.ok && r.t) {
+        atual = { a: a, t: r.t };
+        esperarResultado();
+      } else if (! tratarRecusa(r)) {
+        mostrar('tela-principal');
+        erro('O resultado deste aluno não está mais no Google. Confira a nota no Turmiza.');
+      }
+    }).catch(function () {
+      pronto();
+      mostrar('tela-principal');
+      erro('Sem conexão. Tente de novo.');
+    });
+  }
+
+  // ------------------------------------------------------------------ resultado
+
+  /** O resumo da tabela: "-" desligado, "ok" enviado, "falha" não enviado, "" ainda não enviado. */
+  function resumoDoCanal(canal) {
+    if (! canal) {
+      return '-';
+    }
+
+    if (! canal.liga && ! canal.estado) {
+      return '-';
+    }
+
+    return canal.estado === 'enviado' ? 'ok' : (canal.estado ? 'falha' : '');
+  }
+
+  function mostrarResultado(res, envioPendente) {
+    pararEspera();
+
+    if (res.erro) {
+      voltarPrincipal('');
+      erro(res.erro);
+
+      return;
+    }
+
+    var a = atual.a;
+    var envio = res.envio || {};
+    estado.resumos[a] = Object.assign({}, estado.resumos[a] || {}, { t: res.t, nota: res.nota, email: resumoDoCanal(envio.email), app: resumoDoCanal(envio.app) });
+
+    $('resultado-aluno').textContent = nomeDe(a);
+    $('resultado-matricula').textContent = matriculaDe(a);
+    $('resultado-rotulo').textContent = res.tipo === 'av' ? 'Nota da AV' : (res.tipo === 'avs' ? 'Nota da AVS' : 'Nota');
+    $('resultado-nota').textContent = res.nota;
+    $('resultado-maximo').textContent = 'de ' + res.maximo;
+    $('resultado-salva').textContent = '✔ Nota salva no Turmiza' + (res.salva ? ' às ' + res.salva : '');
+
+    var chips = $('resultado-chips');
+    chips.textContent = '';
+    var erros = (res.erros || []).length;
+    chips.appendChild(el('span', 'chip verde', res.acertos + (res.acertos === 1 ? ' acerto' : ' acertos')));
+    chips.appendChild(el('span', 'chip vermelho', erros + (erros === 1 ? ' erro' : ' erros')));
+
+    if (res.brancos > 0) {
+      chips.appendChild(el('span', 'chip cinza', res.brancos + ' em branco'));
+    }
+
+    if ((res.anuladas || []).length > 0) {
+      chips.appendChild(el('span', 'chip cinza', res.anuladas.length + (res.anuladas.length === 1 ? ' anulada' : ' anuladas')));
+    }
+
+    desenharQuestoes(res);
+    desenharSituacao(res.situacao);
+    desenharAvs(res.avs);
+    desenharEnvio(envio, envioPendente);
+    mostrar('tela-resultado');
+  }
+
+  function desenharQuestoes(res) {
+    var caixa = $('resultado-questoes');
+    caixa.textContent = '';
+    var marcadas = String(res.marcadas || '').split('');
+    var corretas = String(res.corretas || '').split('');
+    var grade = el('div', 'questoes');
+    var nomes = { '-': 'branco', '*': 'dupla' };
+
+    marcadas.forEach(function (marcada, i) {
+      var numero = estado.numeros[i] || i + 1;
+      var anulada = (res.anuladas || []).indexOf(numero) !== -1;
+      var acertou = ! anulada && marcada === corretas[i];
+      var q = el('div', 'q ' + (anulada ? 'an' : (acertou ? 'ac' : 'er')), String(numero).padStart(2, '0') + (anulada ? ' ⊘' : (acertou ? ' ✓' : ' ✗')));
+      q.appendChild(el('small', '', anulada ? 'anulada' : (acertou ? corretas[i] : (nomes[marcada] || marcada) + ' → ' + corretas[i])));
+      grade.appendChild(q);
+    });
+
+    if (marcadas.length > 10) {
+      var detalhes = el('details');
+      detalhes.appendChild(el('summary', '', 'Ver questão por questão'));
+      detalhes.appendChild(grade);
+      caixa.appendChild(detalhes);
+    } else {
+      caixa.appendChild(grade);
+    }
+  }
+
+  function caixaSituacao(tom, rotulo, frase) {
+    var icones = { aprovado: '✅ ', recuperacao: '⚠️ ', reprovado: '❌ ', parcial: '⏳ ' };
+    var caixa = el('div', 'situacao ' + tom);
+    caixa.appendChild(el('p', 'r', (icones[tom] || '') + rotulo));
+    caixa.appendChild(el('p', '', frase));
+
+    return caixa;
+  }
+
+  function desenharSituacao(situacao) {
+    var cartao = $('resultado-situacao');
+    cartao.textContent = '';
+    cartao.hidden = ! situacao;
+
+    if (! situacao) {
+      return;
+    }
+
+    cartao.appendChild(el('h3', '', 'Situação na disciplina'));
+    cartao.appendChild(caixaSituacao(situacao.tom, situacao.rotulo, situacao.frase));
+
+    if ((situacao.grupos || []).length > 0) {
+      var tabela = el('table', 'boletim');
+      var cabeca = el('tr');
+      cabeca.appendChild(el('th', '', 'Avaliação'));
+      cabeca.appendChild(el('th', 'n', 'Vale'));
+      cabeca.appendChild(el('th', 'n', 'Nota'));
+      tabela.appendChild(cabeca);
+
+      situacao.grupos.forEach(function (grupo) {
+        var titulo = el('tr', 'grupo');
+        var celula = el('td', '', grupo.nome);
+        celula.colSpan = 3;
+        titulo.appendChild(celula);
+        tabela.appendChild(titulo);
+
+        grupo.itens.forEach(function (item) {
+          var linha = el('tr', item.esta ? 'esta' : '');
+          var nome = el('td', '', item.titulo);
+
+          if (item.esta) {
+            nome.appendChild(el('span', 'tag', 'esta prova'));
+          }
+
+          linha.appendChild(nome);
+          linha.appendChild(el('td', 'n', item.vale));
+          linha.appendChild(el('td', 'n', item.nota));
+          tabela.appendChild(linha);
+        });
+
+        if (grupo.mostrar_total) {
+          var total = el('tr', 'total');
+          total.appendChild(el('td', '', grupo.rotulo_total));
+          total.appendChild(el('td', 'n', grupo.vale_total));
+          total.appendChild(el('td', 'n', grupo.total));
+          tabela.appendChild(total);
+        }
+      });
+
+      cartao.appendChild(tabela);
+    }
+
+    if (situacao.medias) {
+      var m = situacao.medias;
+      var medias = el('div', 'medias');
+      var sem = el('div', 'media');
+      sem.appendChild(el('div', 'l', 'Sem simulados'));
+      sem.appendChild(el('div', 'v', m.sem));
+      var com = el('div', 'media final');
+      com.appendChild(el('div', 'l', 'Com simulados'));
+      com.appendChild(el('div', 'v', m.com));
+      com.appendChild(el('div', 's', m.limitada
+        ? 'Dos ' + m.simulados + ' dos simulados, entraram só ' + m.entraram + ': a média não passa de ' + situacao.maxima + '.'
+        : 'Somaram ' + m.entraram + ' dos simulados (ponto extra).'));
+      medias.appendChild(sem);
+      medias.appendChild(com);
+      cartao.appendChild(medias);
+    }
+
+    if (situacao.conta) {
+      cartao.appendChild(el('div', 'conta', situacao.conta));
+    }
+
+    if (situacao.avs) {
+      var proximo = el('div', 'aviso');
+      proximo.style.margin = '12px 0 0';
+      proximo.appendChild(el('b', '', 'Próximo passo: AVS' + (situacao.avs.data ? ' em ' + situacao.avs.data : '') + '.'));
+      proximo.appendChild(el('br'));
+      proximo.appendChild(document.createTextNode('Para a aprovação, precisa tirar pelo menos ' + situacao.avs.precisa + ' na AVS.'));
+      cartao.appendChild(proximo);
+    }
+  }
+
+  function desenharAvs(avs) {
+    var cartao = $('resultado-avs');
+    cartao.textContent = '';
+    cartao.hidden = ! avs;
+
+    if (! avs) {
+      return;
+    }
+
+    cartao.appendChild(el('h3', '', 'A AVS na média final'));
+    var antes = el('div', 'avs-passo' + (avs.aplicada ? ' riscado' : ''));
+    var rotulo = el('span', '', 'Média final antes da AVS');
+
+    if (avs.antes_sem) {
+      rotulo.appendChild(el('small', '', 'sem simulados ' + avs.antes_sem + ' · com simulados ' + avs.antes));
+    }
+
+    antes.appendChild(rotulo);
+    antes.appendChild(el('strong', '', avs.antes));
+    cartao.appendChild(antes);
+    cartao.appendChild(el('div', 'seta', avs.aplicada ? '↓ substituída pela AVS (' + avs.nota + ')' : 'AVS ' + avs.nota + ': não superou, a média fica'));
+    var depois = el('div', 'avs-passo' + (avs.aplicada ? ' final' : ''));
+    depois.appendChild(el('span', '', 'Média final'));
+    depois.appendChild(el('strong', '', avs.final));
+    cartao.appendChild(depois);
+    var situacao = caixaSituacao(avs.tom, avs.rotulo, avs.frase);
+    situacao.style.margin = '12px 0 0';
+    cartao.appendChild(situacao);
+  }
+
+  /** Os canais do "Enviar nota" (os marcados no painel do Turmiza) e o botão. */
+  function desenharEnvio(envio, pendente) {
+    var caixa = $('canais');
+    caixa.textContent = '';
+    var email = envio.email || { liga: false, estado: '' };
+    var app = envio.app || { liga: false, estado: '' };
+    var vao = [];
+
+    [['✉ E-mail', email, 'email'], ['📱 App da Estácio', app, 'app']].forEach(function (par) {
+      var canal = par[1];
+      var bloco = el('div', 'canal');
+      var cabecalho = el('div', 'cab');
+      cabecalho.appendChild(el('span', '', par[0]));
+      var situacao;
+      var detalhe = '';
+      var ruim = false;
+
+      if (pendente && canal.liga && ! canal.motivo) {
+        situacao = el('span', 'estado vai', 'enviando…');
+      } else if (canal.estado === 'enviado') {
+        situacao = el('span', 'estado ok', 'enviado');
+      } else if (canal.estado) {
+        situacao = el('span', 'estado falha', 'não enviado');
+        detalhe = canal.estado;
+        ruim = true;
+      } else if (! canal.liga) {
+        situacao = el('span', 'estado fora', 'desligado no Turmiza');
+      } else if (canal.motivo) {
+        situacao = el('span', 'estado fora', 'não vai');
+        detalhe = canal.motivo;
+        ruim = true;
+      } else {
+        situacao = el('span', 'estado vai', 'vai');
+      }
+
+      if (canal.liga && ! canal.motivo) {
+        vao.push(par[2]);
+      }
+
+      cabecalho.appendChild(situacao);
+      bloco.appendChild(cabecalho);
+
+      if (par[2] === 'email' && canal.liga && ! ruim) {
+        bloco.appendChild(el('div', 'det', (canal.descricao || '') + (canal.para ? ', para ' + canal.para : '')));
+      }
+
+      if (par[2] === 'app' && canal.mensagem) {
+        var mensagem = el('div', 'msg-app');
+        mensagem.appendChild(el('b', '', canal.titulo));
+        mensagem.appendChild(document.createTextNode(canal.mensagem));
+        var medidor = el('div', 'medidor' + (canal.tamanho > canal.limite ? ' passou' : ''));
+        var barra = el('span', 'barra');
+        var cheio = el('i');
+        cheio.style.width = Math.min(100, canal.tamanho / canal.limite * 100) + '%';
+        barra.appendChild(cheio);
+        medidor.appendChild(barra);
+        medidor.appendChild(document.createTextNode(canal.tamanho + '/' + canal.limite + (canal.tamanho > canal.limite ? ' · não cabe' : ' ✓')));
+        mensagem.appendChild(medidor);
+        bloco.appendChild(mensagem);
+
+        if (canal.resumida && ! ruim) {
+          bloco.appendChild(el('div', 'det', 'A lista das questões erradas não cabia: foi trocada pela quantidade.'));
+        }
+      }
+
+      if (detalhe) {
+        bloco.appendChild(el('div', 'det ruim', detalhe));
+      }
+
+      caixa.appendChild(bloco);
+    });
+
+    var botao = $('enviar-nota');
+    var jaFoi = email.estado === 'enviado' || app.estado === 'enviado';
+    botao.disabled = pendente || vao.length === 0;
+    botao.textContent = pendente ? 'Enviando…' : (vao.length === 0 ? 'Nada para enviar' : (jaFoi ? 'Enviar de novo' : (vao.length === 1 && vao[0] === 'email' && app.liga ? 'Enviar nota (só e-mail)' : 'Enviar nota')));
+    $('envio-dica').hidden = vao.length > 0;
+    $('envio-dica').textContent = vao.length === 0 ? 'Ligue o e-mail ou o app no painel "Corrigir pelo celular", no Turmiza.' : '';
+    $('proximo').className = jaFoi && ! pendente ? 'botao azul' : 'botao claro';
+    $('envio-aviso').hidden = true;
+
+    if (pendente) {
+      esperarEnvio();
+    }
+  }
+
+  $('enviar-nota').addEventListener('click', function () {
+    var botao = this;
+    botao.disabled = true;
+    erro('');
+
+    chamar({ acao: 'correcao_pedir_envio', a: atual.a, t: atual.t }).then(function (r) {
+      if (r && r.ok) {
+        esperarEnvio();
+        botao.textContent = 'Enviando…';
+        document.querySelectorAll('#canais .estado.vai').forEach(function (e) { e.textContent = 'enviando…'; });
+      } else if (! tratarRecusa(r)) {
+        botao.disabled = false;
+        $('envio-aviso').textContent = mensagens[r && r.motivo] || 'Não foi possível pedir o envio. Tente de novo.';
+        $('envio-aviso').hidden = false;
+      }
+    }).catch(function () {
+      botao.disabled = false;
+      $('envio-aviso').textContent = 'Sem conexão. Tente de novo.';
+      $('envio-aviso').hidden = false;
+    });
+  });
+
+  /** Espera o Turmiza enviar e publicar o resultado de novo, com o que aconteceu em cada canal. */
+  function esperarEnvio() {
+    pararEspera();
+    var tentativas = 0;
+    var aguardado = atual;
+
+    function perguntar() {
+      espera = null;
+
+      chamar({ acao: 'correcao_resultado', a: aguardado.a }).then(function (r) {
+        if (atual !== aguardado) {
+          return;
+        }
+
+        if (r && r.ok && ! r.envio_pendente && r.resultado && r.resultado.t === aguardado.t) {
+          mostrarResultado(r.resultado, false);
+
+          return;
+        }
+
+        if (r && r.ok === false && tratarRecusa(r)) {
+          return;
+        }
+
+        proxima();
+      }).catch(proxima);
+    }
+
+    function proxima() {
+      if (atual !== aguardado) {
+        return;
+      }
+
+      tentativas++;
+
+      if (tentativas >= TENTATIVAS) {
+        $('envio-aviso').textContent = 'O Turmiza ainda não enviou. O pedido está guardado e sai assim que a tela de notas da prova estiver aberta no computador.';
+        $('envio-aviso').hidden = false;
+
+        return;
+      }
+
+      espera = setTimeout(perguntar, ESPERA_MS);
+    }
+
+    espera = setTimeout(perguntar, ESPERA_MS);
+  }
+
+  $('proximo').addEventListener('click', function () {
+    var a = atual ? atual.a : null;
+    var resumo = a ? estado.resumos[a] || {} : {};
+    voltarPrincipal(resumo.email === 'ok' || resumo.app === 'ok' ? '✅ Nota de ' + nomeDe(a) + ' enviada. Próximo caderno!' : '');
   });
 
   // ------------------------------------------------------------------ início
